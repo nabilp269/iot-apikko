@@ -1,0 +1,357 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "2.1 Create `lib/widgets/historical_trend_chart.dart` file": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388961680
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794389139620
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794389798179
+      }
+    ],
+    "2.2 Add loading and empty state handling": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388961869
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794389804149
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794389810565
+      }
+    ],
+    "3.1 Create `lib/widgets/sensor_card.dart` file": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388961994
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794389828067
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794390130818
+      }
+    ],
+    "3.2 Set up animation controller and animations": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388962139
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794390131572
+      }
+    ],
+    "3.3 Build collapsed state UI": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388962271
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794390132325
+      }
+    ],
+    "3.4 Build expanded state UI": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388962344
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794390133054
+      }
+    ],
+    "3.5 Implement tap gesture handling": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388962493
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794390133833
+      }
+    ],
+    "3.6 Add accessibility support": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388962615
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794390134622
+      }
+    ],
+    "4.1 Create `lib/widgets/sensor_card_list.dart` file": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388962721
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794390142195
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794390220337
+      }
+    ],
+    "4.2 Implement card expansion coordination": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388962935
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794390221154
+      }
+    ],
+    "4.3 Implement scroll position management": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388963013
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794390221869
+      }
+    ],
+    "4.4 Build ListView with SensorCard instances": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388963176
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794390222824
+      }
+    ],
+    "5. Checkpoint - Ensure all widget tests pass": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388963256
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794390231668
+      }
+    ],
+    "6.1 Add imports for new widgets and models": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388963373
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794390238585
+      },
+      {
+        "executionId": "c1319a3a-7f6a-43ec-9d6c-ab2310dfd7a2",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794447062681
+      }
+    ],
+    "6.2 Create sensor data conversion method": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388963491
+      },
+      {
+        "executionId": "c1319a3a-7f6a-43ec-9d6c-ab2310dfd7a2",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794447063622
+      }
+    ],
+    "6.3 Implement mock historical data generator": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388963668
+      },
+      {
+        "executionId": "c1319a3a-7f6a-43ec-9d6c-ab2310dfd7a2",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794447064492
+      }
+    ],
+    "6.4 Add status determination helper methods": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388963754
+      },
+      {
+        "executionId": "c1319a3a-7f6a-43ec-9d6c-ab2310dfd7a2",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794447067527
+      }
+    ],
+    "6.5 Replace existing sensor card UI with SensorCardList": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388963835
+      },
+      {
+        "executionId": "c1319a3a-7f6a-43ec-9d6c-ab2310dfd7a2",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794447067654
+      }
+    ],
+    "7.1 Update SensorCard to use Flutter theme": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388963914
+      }
+    ],
+    "7.2 Update HistoricalTrendChart to use Flutter theme": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388964071
+      }
+    ],
+    "8.1 Verify all sensors display correctly in collapsed state": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388964155
+      }
+    ],
+    "8.2 Verify expand/collapse interactions work smoothly": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388964234
+      }
+    ],
+    "8.3 Verify expanded state displays all information": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388964332
+      }
+    ],
+    "8.4 Test scroll behavior and state persistence": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388964455
+      }
+    ],
+    "8.5 Test accessibility features": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388964596
+      }
+    ],
+    "9. Final checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388964705
+      }
+    ],
+    "1. Create data models and supporting types": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794388983761
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794389098204
+      }
+    ],
+    "2. Implement HistoricalTrendChart widget": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794389131275
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794389810713
+      }
+    ],
+    "3. Implement SensorCard widget": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794389820845
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794390134773
+      }
+    ],
+    "4. Implement SensorCardList widget": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794390141316
+      },
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794390222975
+      }
+    ],
+    "6. Refactor server_monitoring_screen.dart to use new components": [
+      {
+        "executionId": "ce687072-64d5-46ec-b6d3-ba5d53d9e07f",
+        "chatSessionId": "sess_203086ae-a894-487e-956b-0b26c6ca1725",
+        "timestamp": 1794390232734
+      }
+    ]
+  }
+}
