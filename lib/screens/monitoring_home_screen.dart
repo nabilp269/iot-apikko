@@ -51,6 +51,8 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
     26.5,
   ];
   final List<double> _waterHistory = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  final List<double> _gasHistory = [145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145];
+  final List<double> _flameHistory = [4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095];
   ValueNotifier<SensorData>? _detailSensorNotifier;
 
   @override
@@ -99,8 +101,16 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
             _temperatureHistory.removeAt(0);
           }
         }
-        if (gas != null) _gas = gas.toInt();
-        if (flameValue != null) _flameValue = flameValue.toInt();
+        if (gas != null) {
+          _gas = gas.toInt();
+          _gasHistory.add(_gas.toDouble());
+          if (_gasHistory.length > 12) _gasHistory.removeAt(0);
+        }
+        if (flameValue != null) {
+          _flameValue = flameValue.toInt();
+          _flameHistory.add(_flameValue.toDouble());
+          if (_flameHistory.length > 12) _flameHistory.removeAt(0);
+        }
         if (water != null) {
           _water = water.toInt();
           _waterHistory.add(_water.toDouble());
@@ -293,6 +303,7 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
   void dispose() {
     _timer?.cancel();
     unawaited(_tts.stop());
+    _detailSensorNotifier?.dispose();
     super.dispose();
   }
 
@@ -411,9 +422,9 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
                 Expanded(
                   child: _buildSensorCard(
                     'Suhu Ruangan',
-                    ' °C',
-                    '42sp',
-                    'Normal',
+                    '${_temp.toStringAsFixed(1)} °C',
+                    'Normal: 18-27°C',
+                    _temperatureStatus(),
                     const Color(0xFF3B82F6),
                     Icons.thermostat,
                   ),
@@ -422,9 +433,9 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
                 Expanded(
                   child: _buildSensorCard(
                     'Level Air',
-                    ' ADC',
-                    '42sp',
-                    'Aman',
+                    '$_water ADC',
+                    'Maks Aman: 10 ADC',
+                    _waterStatus(),
                     const Color(0xFF0EA5E9),
                     Icons.water,
                   ),
@@ -437,9 +448,9 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
                 Expanded(
                   child: _buildSensorCard(
                     'Sensor Gas',
-                    ' PPM',
-                    '42sp',
-                    'Aman',
+                    '$_gas PPM',
+                    'Maks Aman: 600 PPM',
+                    _gasStatus(),
                     const Color(0xFF10B981),
                     Icons.air,
                   ),
@@ -449,8 +460,8 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
                   child: _buildSensorCard(
                     'Deteksi Api',
                     _flame ? 'API ADA' : 'TIDAK ADA API',
-                    '42sp',
-                    'Aman',
+                    'Nilai: $_flameValue ADC',
+                    _flameStatus(),
                     const Color(0xFF10B981),
                     Icons.local_fire_department,
                   ),
@@ -643,10 +654,16 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
         _temperatureHistory.add(temperature);
         if (_temperatureHistory.length > 12) _temperatureHistory.removeAt(0);
       }
-      if (gas != null) _gas = gas;
+      if (gas != null) {
+        _gas = gas;
+        _gasHistory.add(gas.toDouble());
+        if (_gasHistory.length > 12) _gasHistory.removeAt(0);
+      }
       if (flameValue != null) {
         _flameValue = flameValue;
         _flame = flameValue < 2500;
+        _flameHistory.add(flameValue.toDouble());
+        if (_flameHistory.length > 12) _flameHistory.removeAt(0);
       }
       if (water != null) {
         _water = water;
@@ -746,12 +763,10 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
                       ),
                     ),
                   ),
-                  Text(
-                    '14sp',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: cardTextColor.withValues(alpha: 0.65),
-                    ),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 12,
+                    color: cardTextColor.withValues(alpha: 0.45),
                   ),
                 ],
               ),
@@ -900,47 +915,79 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
     final isTemperature = title == 'Suhu Ruangan';
     final isFlame = title == 'Deteksi Api';
     final isWater = title == 'Level Air';
-    final value = isTemperature
+    final isGas = title == 'Sensor Gas';
+
+    final SensorType type = isTemperature
+        ? SensorType.temperature
+        : isFlame
+            ? SensorType.flame
+            : isWater
+                ? SensorType.humidity
+                : SensorType.gas;
+
+    final double value = isTemperature
         ? _temp
         : isFlame
-        ? _flameValue.toDouble()
-        : isWater
-        ? _water.toDouble()
-        : _gas.toDouble();
+            ? _flameValue.toDouble()
+            : isWater
+                ? _water.toDouble()
+                : _gas.toDouble();
+
+    final String unit = isTemperature
+        ? '°C'
+        : isFlame
+            ? 'ADC'
+            : isWater
+                ? 'ADC'
+                : 'PPM';
+
     final statusText = isTemperature
         ? _temperatureStatus()
         : isFlame
-        ? _flameStatus()
-        : isWater
-        ? _waterStatus()
-        : _gasStatus();
+            ? _flameStatus()
+            : isWater
+                ? _waterStatus()
+                : _gasStatus();
+
     final history = isTemperature
         ? _temperatureHistory
         : isWater
-        ? _waterHistory
-        : <double>[];
+            ? _waterHistory
+            : isFlame
+                ? _flameHistory
+                : _gasHistory;
+
     final dangerThreshold = isTemperature
         ? 32.0
         : isFlame
-        ? 2500.0
-        : isWater
-        ? 20.0
-        : 1200.0;
+            ? 2500.0
+            : isWater
+                ? 20.0
+                : 1200.0;
+
+    final warningThreshold = isTemperature
+        ? 27.0
+        : isFlame
+            ? 3500.0
+            : isWater
+                ? 10.0
+                : 600.0;
+
     return SensorData(
       id: title,
       name: title,
       currentValue: value,
-      unit: isTemperature ? '°C' : 'ADC',
+      unit: unit,
       status: statusText == 'Bahaya'
           ? SensorStatus.danger
           : statusText == 'Waspada'
-          ? SensorStatus.warning
-          : SensorStatus.normal,
-      type: isTemperature ? SensorType.temperature : SensorType.gas,
+              ? SensorStatus.warning
+              : SensorStatus.normal,
+      type: type,
       lastUpdate: DateTime.now(),
       location: 'Ruang Server',
       thresholds: SensorThresholds(
-        warningThreshold: isFlame ? 3500 : dangerThreshold * 0.5,
+        warningThreshold: warningThreshold,
         dangerThreshold: dangerThreshold,
       ),
       historicalData: history
