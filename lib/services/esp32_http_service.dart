@@ -12,8 +12,15 @@ class Esp32HttpService {
   );
 
   static Future<Map<String, dynamic>> fetchSensors() async {
+    final baseUri = Uri.parse(sensorUrl);
+    final freshUri = baseUri.replace(
+      queryParameters: {
+        ...baseUri.queryParameters,
+        't': DateTime.now().millisecondsSinceEpoch.toString(),
+      },
+    );
     final response = await http
-        .get(Uri.parse(sensorUrl), headers: {'Accept': 'application/json'})
+        .get(freshUri, headers: {'Accept': 'application/json'})
         // ESP32 bisa sesekali membutuhkan waktu lebih dari 2 detik saat Wi-Fi
         // sedang sibuk. Jangan terlalu cepat menganggap perangkat offline.
         .timeout(const Duration(seconds: 2));

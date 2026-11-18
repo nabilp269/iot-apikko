@@ -22,6 +22,8 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
   int _water = 0;
   int _flameValue = 4095;
   bool _flame = false;
+  String _esp32Status = '';
+  String _triggerReason = '';
   bool _alarmOn = true;
   bool _fanOn = false;
   bool _bluetoothConnected = false;
@@ -49,6 +51,7 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
     26.5,
   ];
   final List<double> _waterHistory = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  ValueNotifier<SensorData>? _detailSensorNotifier;
 
   @override
   void initState() {
@@ -69,12 +72,16 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
       final data = await Esp32HttpService.fetchSensors();
       if (!mounted) return;
 
-      final temperature = (data['temperature_c'] ??
-          data['temperature'] ??
-          data['temp']) as num?;
+      final temperature =
+          (data['temperature_c'] ?? data['temperature'] ?? data['temp'])
+              as num?;
       final gas = (data['gas_raw'] ?? data['mq2_value']) as num?;
       final flameValue = data['flame_value'] as num?;
       final water = (data['water_value'] ?? data['water_raw']) as num?;
+      final esp32Status = (data['status'] ?? '').toString().toUpperCase();
+      final triggerReason = (data['trigger_reason'] ?? '')
+          .toString()
+          .toUpperCase();
       final flame = flameValue != null
           ? flameValue < 2500
           : data['flame_detected'] == true;
@@ -83,6 +90,8 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
         _apiConnected = true;
         _consecutiveFailures = 0;
         _apiError = null;
+        _esp32Status = esp32Status;
+        _triggerReason = triggerReason;
         if (temperature != null) {
           _temp = temperature.toDouble();
           _temperatureHistory.add(_temp);
@@ -99,6 +108,7 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
         }
         _flame = flame;
       });
+      _publishDetailUpdate();
       _playAlarmIfNeeded();
     } catch (error) {
       if (!mounted) return;
@@ -118,13 +128,46 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
   String _temperatureStatus() => _temp >= 32
       ? 'Bahaya'
       : (_temp >= 27 || _temp < 18 ? 'Waspada' : 'Normal');
-  String _gasStatus() =>
-      _gas >= 1200 ? 'Bahaya' : (_gas >= 600 ? 'Waspada' : 'Aman');
-  String _flameStatus() => (_flame || _flameValue < 2500)
-      ? 'Bahaya'
-      : (_flameValue < 3500 ? 'Waspada' : 'Aman');
-  String _waterStatus() =>
-      _water >= 20 ? 'Bahaya' : (_water >= 10 ? 'Waspada' : 'Aman');
+  bool _reasonMatches(String values) =>
+      _triggerReason.contains(values) || _triggerReason.contains('ALL');
+
+  String _gasStatus() {
+    if (_esp32Status.contains('BAHAYA') &&
+        (_reasonMatches('MQ2') || _reasonMatches('GAS'))) {
+      return 'Bahaya';
+    }
+    if (_esp32Status.contains('WASPADA') &&
+        (_reasonMatches('MQ2') || _reasonMatches('GAS'))) {
+      return 'Waspada';
+    }
+    return _gas >= 1200 ? 'Bahaya' : (_gas >= 600 ? 'Waspada' : 'Aman');
+  }
+
+  String _flameStatus() {
+    if (_esp32Status.contains('BAHAYA') &&
+        (_reasonMatches('FLAME') || _reasonMatches('API'))) {
+      return 'Bahaya';
+    }
+    if (_esp32Status.contains('WASPADA') &&
+        (_reasonMatches('FLAME') || _reasonMatches('API'))) {
+      return 'Waspada';
+    }
+    return (_flame || _flameValue < 2500)
+        ? 'Bahaya'
+        : (_flameValue < 3500 ? 'Waspada' : 'Aman');
+  }
+
+  String _waterStatus() {
+    if (_esp32Status.contains('BAHAYA') &&
+        (_reasonMatches('WATER') || _reasonMatches('AIR'))) {
+      return 'Bahaya';
+    }
+    if (_esp32Status.contains('WASPADA') &&
+        (_reasonMatches('WATER') || _reasonMatches('AIR'))) {
+      return 'Waspada';
+    }
+    return _water >= 20 ? 'Bahaya' : (_water >= 10 ? 'Waspada' : 'Aman');
+  }
 
   void _playAlarmIfNeeded() {
     String currentState = 'Aman';
@@ -217,7 +260,10 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
           actions: [
             TextButton(
               onPressed: messenger.hideCurrentMaterialBanner,
-              child: const Text('Tutup', style: TextStyle(color: Colors.black87)),
+              child: const Text(
+                'Tutup',
+                style: TextStyle(color: Colors.black87),
+              ),
             ),
           ],
         ),
@@ -315,16 +361,18 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
               children: [
                 Icon(
                   Icons.circle,
-                  color: _apiConnected
+                  color: (_bluetoothConnected || _apiConnected)
                       ? const Color(0xFF10B981)
                       : const Color(0xFFF59E0B),
                   size: 8,
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  _apiConnected ? 'API Online' : 'API Offline',
+                  _bluetoothConnected
+                      ? 'BLE Online'
+                      : (_apiConnected ? 'API Online' : 'API Offline'),
                   style: TextStyle(
-                    color: _apiConnected
+                    color: (_bluetoothConnected || _apiConnected)
                         ? const Color(0xFF10B981)
                         : const Color(0xFFF59E0B),
                     fontSize: 12,
@@ -558,18 +606,38 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
       if (!enabled) {
         _tts.stop();
         _lastAlarmState = 'Aman';
+      } else {
+        // Jika sensor sudah kuning/merah sebelum alarm diaktifkan,
+        // izinkan suara diputar pada pembacaan berikutnya.
+        _lastAlarmState = 'Aman';
       }
     });
     if (enabled) unawaited(_enableSound());
   }
 
   void _applyBluetoothSensorData(Map<String, dynamic> data) {
-    final temperature = (data['temperature_c'] as num?)?.toDouble();
-    final gas = (data['gas_raw'] as num?)?.toInt();
+    num? readNum(Object? value) {
+      if (value is num) return value;
+      return num.tryParse(value?.toString() ?? '');
+    }
+
+    final temperature = readNum(
+      data['temperature_c'] ?? data['temperature'] ?? data['temp'],
+    )?.toDouble();
+    final gas = readNum(data['gas_raw'] ?? data['mq2_value'])?.toInt();
     final flame = data['flame_detected'];
-      final flameValue = (data['flame_value'] as num?)?.toInt();
+    final flameValue = readNum(data['flame_value'])?.toInt();
+    final water = readNum(data['water_value'] ?? data['water_raw'])?.toInt();
+    final esp32Status = (data['status'] ?? '').toString().toUpperCase();
+    final triggerReason = (data['trigger_reason'] ?? '')
+        .toString()
+        .toUpperCase();
     if (!mounted) return;
     setState(() {
+      _apiConnected = true;
+      _apiError = null;
+      if (esp32Status.isNotEmpty) _esp32Status = esp32Status;
+      if (triggerReason.isNotEmpty) _triggerReason = triggerReason;
       if (temperature != null) {
         _temp = temperature;
         _temperatureHistory.add(temperature);
@@ -580,14 +648,16 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
         _flameValue = flameValue;
         _flame = flameValue < 2500;
       }
-      final water = (data['water_value'] ?? data['water_raw']) as num?;
       if (water != null) {
-        _water = water.toInt();
+        _water = water;
         _waterHistory.add(_water.toDouble());
         if (_waterHistory.length > 12) _waterHistory.removeAt(0);
       }
       if (flame is bool) _flame = flame;
     });
+    _publishDetailUpdate();
+    // BLE notification langsung memicu perubahan warna, popup, notifikasi,
+    // dan suara tanpa menunggu request HTTP berikutnya.
     _playAlarmIfNeeded();
   }
 
@@ -605,10 +675,10 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
         ? '$_gas PPM'
         : title == 'Deteksi Api'
         ? _flameStatus() == 'Bahaya'
-            ? 'API ADA'
-            : _flameStatus() == 'Waspada'
-            ? 'WASPADA API'
-            : 'TIDAK ADA API'
+              ? 'API ADA'
+              : _flameStatus() == 'Waspada'
+              ? 'WASPADA API'
+              : 'TIDAK ADA API'
         : '$_water ADC';
     final currentStatus = title == 'Suhu Ruangan'
         ? _temperatureStatus()
@@ -634,7 +704,7 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
         onTap: () => _openSensorDetail(title),
         borderRadius: BorderRadius.circular(16),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 500),
+          duration: Duration.zero,
           curve: Curves.easeInOut,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -703,7 +773,7 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 500),
+                          duration: Duration.zero,
                           transitionBuilder: (child, animation) =>
                               FadeTransition(
                                 opacity: animation,
@@ -739,7 +809,7 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
               ),
               const SizedBox(height: 6),
               AnimatedContainer(
-                duration: const Duration(milliseconds: 400),
+                duration: Duration.zero,
                 curve: Curves.easeOut,
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -768,6 +838,21 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
   }
 
   void _openSensorDetail(String title) {
+    final sensor = _createDetailSensor(title);
+    _detailSensorNotifier?.dispose();
+    _detailSensorNotifier = ValueNotifier<SensorData>(sensor);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SensorDetailScreen(
+          sensorData: sensor,
+          liveSensorData: _detailSensorNotifier,
+          onNavigate: widget.onNavigate,
+        ),
+      ),
+    );
+    return;
+    /*
     final isTemperature = title == 'Suhu Ruangan';
     final isFlame = title == 'Deteksi Api';
     final isWater = title == 'Level Air';
@@ -808,6 +893,75 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
         ),
       ),
     );
+    */
+  }
+
+  SensorData _createDetailSensor(String title) {
+    final isTemperature = title == 'Suhu Ruangan';
+    final isFlame = title == 'Deteksi Api';
+    final isWater = title == 'Level Air';
+    final value = isTemperature
+        ? _temp
+        : isFlame
+        ? _flameValue.toDouble()
+        : isWater
+        ? _water.toDouble()
+        : _gas.toDouble();
+    final statusText = isTemperature
+        ? _temperatureStatus()
+        : isFlame
+        ? _flameStatus()
+        : isWater
+        ? _waterStatus()
+        : _gasStatus();
+    final history = isTemperature
+        ? _temperatureHistory
+        : isWater
+        ? _waterHistory
+        : <double>[];
+    final dangerThreshold = isTemperature
+        ? 32.0
+        : isFlame
+        ? 2500.0
+        : isWater
+        ? 20.0
+        : 1200.0;
+    return SensorData(
+      id: title,
+      name: title,
+      currentValue: value,
+      unit: isTemperature ? '°C' : 'ADC',
+      status: statusText == 'Bahaya'
+          ? SensorStatus.danger
+          : statusText == 'Waspada'
+          ? SensorStatus.warning
+          : SensorStatus.normal,
+      type: isTemperature ? SensorType.temperature : SensorType.gas,
+      lastUpdate: DateTime.now(),
+      location: 'Ruang Server',
+      thresholds: SensorThresholds(
+        warningThreshold: isFlame ? 3500 : dangerThreshold * 0.5,
+        dangerThreshold: dangerThreshold,
+      ),
+      historicalData: history
+          .asMap()
+          .entries
+          .map(
+            (entry) => SensorDataPoint(
+              timestamp: DateTime.now().subtract(
+                Duration(minutes: history.length - entry.key),
+              ),
+              value: entry.value,
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  void _publishDetailUpdate() {
+    final notifier = _detailSensorNotifier;
+    if (notifier == null || !mounted) return;
+    notifier.value = _createDetailSensor(notifier.value.name);
   }
 
   Widget _buildToggle(String label, bool value, Function(bool) onChanged) {

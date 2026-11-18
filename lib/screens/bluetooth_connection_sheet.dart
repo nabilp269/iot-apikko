@@ -98,14 +98,10 @@ class _BluetoothConnectionSheetState extends State<BluetoothConnectionSheet> {
     try {
       final decoded = jsonDecode(payload);
       if (decoded is Map) {
-        // Sensor yang digunakan saat ini hanya tiga:
-        // kelembapan, gas, dan deteksi api.
-        final source = Map<String, dynamic>.from(decoded);
-        final data = <String, dynamic>{
-          if (source.containsKey('humidity_pct')) 'humidity_pct': source['humidity_pct'],
-          if (source.containsKey('gas_raw')) 'gas_raw': source['gas_raw'],
-          if (source.containsKey('flame_detected')) 'flame_detected': source['flame_detected'],
-        };
+        // Teruskan seluruh payload BLE agar monitoring menerima nilai asli
+        // dari ESP32, termasuk mq2_value, flame_value, water_value, status,
+        // dan trigger_reason.
+        final data = Map<String, dynamic>.from(decoded);
         if (data.isEmpty) return;
         widget.onSensorData?.call(data);
         if (mounted) setState(() => _lastPayload = payload);
