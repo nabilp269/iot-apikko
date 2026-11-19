@@ -748,7 +748,7 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
     final badgeTextColor = isAlert ? Colors.white : statusColor;
 
     return SizedBox(
-      height: 145,
+      height: 175,
       child: InkWell(
         onTap: () => _openSensorDetail(title),
         borderRadius: BorderRadius.circular(16),

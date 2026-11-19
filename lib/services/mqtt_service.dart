@@ -36,10 +36,11 @@ class MqttService {
   static const sensorTopic = 'smart_motor/sensor';
   static const alertTopic = 'smart_motor/alert';
 
-  static const _host = String.fromEnvironment(
-    'MQTT_HOST',
-    defaultValue: '192.168.137.1',
-  );
+  static String get _host {
+    const envHost = String.fromEnvironment('MQTT_HOST');
+    if (envHost.isNotEmpty) return envHost;
+    return kIsWeb ? 'localhost' : '192.168.137.1';
+  }
   static const _port = int.fromEnvironment('MQTT_PORT', defaultValue: 1883);
   static const _webSocketPort =
       int.fromEnvironment('MQTT_WS_PORT', defaultValue: 9001);
@@ -88,8 +89,7 @@ class MqttService {
       ..onAutoReconnected = _onAutoReconnected
       ..connectionMessage = mqtt.MqttConnectMessage()
           .withClientIdentifier(clientId)
-          .startClean()
-          .withWillQos(mqtt.MqttQos.atLeastOnce);
+          .startClean();
     _client = client;
 
     try {

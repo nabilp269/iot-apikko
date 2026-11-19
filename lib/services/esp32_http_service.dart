@@ -8,7 +8,7 @@ class Esp32HttpService {
   // --dart-define=SENSOR_API_URL=https://alamat.loca.lt/api/sensor-latest
   static const sensorUrl = String.fromEnvironment(
     'SENSOR_API_URL',
-    defaultValue: 'http://192.168.137.87/sensor',
+    defaultValue: 'http://192.168.137.108/sensor',
   );
 
   static Future<Map<String, dynamic>> fetchSensors() async {
