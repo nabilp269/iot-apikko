@@ -209,7 +209,7 @@ void handleNotificationOptions() {
 
 void setup() {
   Serial.begin(115200);
-  delay(500);
+  delay(50);
   dht.begin();
   pinMode(MQ2_PIN, INPUT);
   pinMode(FLAME_PIN, INPUT);
@@ -228,29 +228,25 @@ void setup() {
   Serial.println("/sensor");
 }
 
+unsigned long lastSendTime = 0;
 void loop() {
-  server.handleClient();
-
-  const int gas = analogRead(MQ2_PIN);
-  const int flameRaw = analogRead(FLAME_PIN);
-  const int water = analogRead(WATER_PIN);
-
-  // DHT22 tidak boleh dibaca setiap loop. Simpan nilai selama 2 detik
-  // agar endpoint API tetap cepat merespons sensor analog.
-  if (millis() - lastDhtRead >= 2000 || lastDhtRead == 0) {
+  server.handleClient(); // Tetap jalan agar ESP32 responsif
+  // Kirim data hanya setiap 5000 ms (5 detik)
+  if (millis() - lastSendTime >= 5000 || lastSendTime == 0) {
+    lastSendTime = millis();
+    const int gas = analogRead(MQ2_PIN);
+    const int flameRaw = analogRead(FLAME_PIN);
+    const int water = analogRead(WATER_PIN);
+    // Baca sensor DHT22
     const float temperature = dht.readTemperature();
     const float humidity = dht.readHumidity();
     if (!isnan(temperature)) cachedTemperature = temperature;
     if (!isnan(humidity)) cachedHumidity = humidity;
-    lastDhtRead = millis();
+    const String payload = buildSensorJson(
+        cachedTemperature, cachedHumidity, gas, flameRaw, water);
+    latestPayload = payload;
+    Serial.println(payload);
+    sendToBluetooth(payload);
+    if (ENABLE_LARAVEL_API) sendToLaravel(payload);
   }
-
-  const String payload = buildSensorJson(
-      cachedTemperature, cachedHumidity, gas, flameRaw, water);
-  latestPayload = payload;
-  Serial.println(payload);
-
-  sendToBluetooth(payload);
-  if (ENABLE_LARAVEL_API) sendToLaravel(payload);
-  delay(50);
 }

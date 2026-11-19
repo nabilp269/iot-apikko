@@ -3,14 +3,15 @@ import base64
 import hashlib
 import struct
 import traceback
+import time
 
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
+# Interval penerusan data sensor ke Chrome (dalam detik)
+FORWARD_INTERVAL_SECONDS = 5.0
+
 def fix_mqtt_packet(payload: bytes) -> bytes:
-    # Perbaiki paket CONNECT jika Will QoS aktif tanpa Will Flag
-    # (Bug bawaan dari Flutter mqtt_client yang ditolak oleh Mosquitto)
     if len(payload) >= 10 and payload[0] == 0x10:
-        # Cek apakah nama protokol adalah 'MQTT' di byte 4..8
         if b"MQTT" in payload[2:8]:
             flags = payload[9]
             will_flag = (flags & 0x04) != 0
@@ -18,7 +19,7 @@ def fix_mqtt_packet(payload: bytes) -> bytes:
             if not will_flag and will_qos:
                 fixed_flags = flags & ~0x18
                 payload = payload[:9] + bytes([fixed_flags]) + payload[10:]
-                print(f"[Bridge] Berhasil memperbaiki Connect Flag (0x{flags:02x} -> 0x{fixed_flags:02x}) agar diterima Mosquitto!")
+                print(f"[Bridge] Berhasil memperbaiki Connect Flag (0x{flags:02x} -> 0x{fixed_flags:02x})")
     return payload
 
 async def handle_ws_client(ws_reader, ws_writer):
@@ -71,11 +72,14 @@ async def handle_ws_client(ws_reader, ws_writer):
     # 2. Connect to local TCP Mosquitto on 1883
     try:
         tcp_reader, tcp_writer = await asyncio.open_connection("127.0.0.1", 1883)
-        print("[Bridge] Terhubung ke Mosquitto (127.0.0.1:1883)!")
+        print(f"[Bridge] Terhubung ke Mosquitto (127.0.0.1:1883)!")
+        print(f"[Bridge] Throttle aktif: Data sensor akan diteruskan tiap {FORWARD_INTERVAL_SECONDS} detik.")
     except Exception as e:
         print(f"[Bridge] Gagal konek ke Mosquitto: {e}")
         ws_writer.close()
         return
+
+    last_forward_time = 0.0
 
     async def ws_to_tcp():
         try:
@@ -87,7 +91,7 @@ async def handle_ws_client(ws_reader, ws_writer):
                 payload_len = b2 & 0x7F
 
                 if opcode == 0x8:  # Close
-                    print("[Bridge] Chrome mengirim sinyal WebSocket CLOSE.")
+                    print("[Bridge] Chrome menutup koneksi WebSocket.")
                     break
                 elif opcode == 0x9:  # Ping
                     ws_writer.write(bytes([0x8A, 0x00]))
@@ -110,26 +114,35 @@ async def handle_ws_client(ws_reader, ws_writer):
                         unmasked[i] = payload[i] ^ mask_key[i % 4]
                     payload = bytes(unmasked)
 
-                # Auto-fix payload jika ada packet CONNECT yang invalid
                 payload = fix_mqtt_packet(payload)
-
-                print(f"[Bridge] Chrome -> Mosquitto: {len(payload)} bytes (MQTT: {payload[:4].hex()})")
                 tcp_writer.write(payload)
                 await tcp_writer.drain()
         except asyncio.IncompleteReadError:
-            print("[Bridge] Chrome menutup stream (IncompleteRead).")
+            pass
         except Exception as e:
             print(f"[Bridge] Error di ws_to_tcp: {e}")
         finally:
             tcp_writer.close()
 
     async def tcp_to_ws():
+        nonlocal last_forward_time
         try:
             while True:
                 data = await tcp_reader.read(4096)
                 if not data:
                     print("[Bridge] Mosquitto menutup koneksi TCP.")
                     break
+
+                # Deteksi paket PUBLISH MQTT (byte pertama 0x30..0x3F)
+                is_publish = (data[0] & 0xF0) == 0x30
+                now = time.time()
+
+                if is_publish:
+                    # Filter agar hanya dikirim ke Chrome setiap 5 detik
+                    if (now - last_forward_time) < FORWARD_INTERVAL_SECONDS and last_forward_time != 0.0:
+                        continue
+                    last_forward_time = now
+
                 length = len(data)
                 if length <= 125:
                     hdr = struct.pack("!BB", 0x82, length)
@@ -138,7 +151,9 @@ async def handle_ws_client(ws_reader, ws_writer):
                 else:
                     hdr = struct.pack("!BBQ", 0x82, 127, length)
 
-                print(f"[Bridge] Mosquitto -> Chrome: {length} bytes (Data: {data[:4].hex()})")
+                if is_publish:
+                    print(f"[Bridge] Mosquitto -> Chrome: {length} bytes [Update tiap 5 detik] OK")
+
                 ws_writer.write(hdr + data)
                 await ws_writer.drain()
         except Exception as e:
@@ -153,9 +168,9 @@ async def handle_ws_client(ws_reader, ws_writer):
 async def main():
     server = await asyncio.start_server(handle_ws_client, "0.0.0.0", 9001)
     print("=" * 60)
-    print("[Bridge] WebSocket MQTT Bridge AKTIF & AUTO-FIX READY!")
-    print("[Bridge] Listening on: 0.0.0.0:9001")
-    print("[Bridge] Forwarding to: 127.0.0.1:1883")
+    print("[Bridge] WebSocket MQTT Bridge AKTIF!")
+    print(f"[Bridge] Mode: Pengiriman ke Chrome dibatasi per {FORWARD_INTERVAL_SECONDS} detik")
+    print("[Bridge] Port WebSocket : 9001 -> Mosquitto 1883")
     print("=" * 60)
     async with server:
         await server.serve_forever()
