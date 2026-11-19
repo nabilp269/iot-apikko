@@ -8,22 +8,14 @@ class Esp32HttpService {
   // --dart-define=SENSOR_API_URL=https://alamat.loca.lt/api/sensor-latest
   static const sensorUrl = String.fromEnvironment(
     'SENSOR_API_URL',
-    defaultValue: 'http://192.168.137.118/sensor',
+    defaultValue: 'http://192.168.137.87/sensor',
   );
 
   static Future<Map<String, dynamic>> fetchSensors() async {
-    final baseUri = Uri.parse(sensorUrl);
-    final freshUri = baseUri.replace(
-      queryParameters: {
-        ...baseUri.queryParameters,
-        't': DateTime.now().millisecondsSinceEpoch.toString(),
-      },
-    );
+    final uri = Uri.parse(sensorUrl);
     final response = await http
-        .get(freshUri, headers: {'Accept': 'application/json'})
-        // ESP32 bisa sesekali membutuhkan waktu lebih dari 2 detik saat Wi-Fi
-        // sedang sibuk. Jangan terlalu cepat menganggap perangkat offline.
-        .timeout(const Duration(seconds: 2));
+        .get(uri, headers: {'Accept': 'application/json'})
+        .timeout(const Duration(seconds: 5));
 
     if (response.statusCode != 200) {
       throw Exception('ESP32 mengembalikan HTTP ${response.statusCode}');
@@ -40,25 +32,8 @@ class Esp32HttpService {
     required String message,
     required num value,
   }) async {
-    try {
-      final baseUrl = Uri.parse(sensorUrl);
-      final endpoint = baseUrl.replace(path: '/notification', query: null);
-      final response = await http
-          .post(
-            endpoint,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'sensor': sensor,
-              'level': level,
-              'value': value,
-              'message': message,
-            }),
-          )
-          .timeout(const Duration(seconds: 3));
-      return response.statusCode >= 200 && response.statusCode < 300;
-    } catch (_) {
-      // Notifikasi tidak boleh menghentikan polling sensor.
-      return false;
-    }
+    // Pada Flutter Web, browser memblokir request POST langsung ke IP ESP32 lokal
+    // karena aturan CORS Preflight (OPTIONS). Notifikasi tetap dicatat di aplikasi Flutter.
+    return false;
   }
 }

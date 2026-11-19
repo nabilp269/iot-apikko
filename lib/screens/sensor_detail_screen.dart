@@ -379,8 +379,8 @@ class _SensorDetailScreenState extends State<SensorDetailScreen>
         _buildThresholdBar(
           label: 'Ambang Batas Gas',
           currentValue: ppm,
-          warningValue: 600,
-          dangerValue: 1200,
+          warningValue: 300,
+          dangerValue: 600,
           minValue: 0,
           maxValue: 2000,
           unit: 'PPM',
@@ -478,10 +478,10 @@ class _SensorDetailScreenState extends State<SensorDetailScreen>
         _buildThresholdBar(
           label: 'Ambang Batas Air',
           currentValue: waterVal,
-          warningValue: 10,
-          dangerValue: 20,
+          warningValue: 30,
+          dangerValue: 200,
           minValue: 0,
-          maxValue: 40,
+          maxValue: 2000,
           unit: 'ADC',
           statusColor: statusColor,
         ),
@@ -985,7 +985,7 @@ class _SensorDetailScreenState extends State<SensorDetailScreen>
 
   // ─── Water Tank Visual ───
   Widget _buildWaterTankVisual(double waterVal, Color statusColor) {
-    final fillPercent = (waterVal / 40).clamp(0.0, 1.0);
+    final fillPercent = (waterVal / 2000).clamp(0.0, 1.0);
 
     return Container(
       padding: const EdgeInsets.all(24),

@@ -167,6 +167,7 @@ void handleSensorApi() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.sendHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   server.sendHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
+  server.sendHeader("Access-Control-Allow-Private-Network", "true");
   server.sendHeader("Cache-Control", "no-store");
   server.send(200, "application/json", latestPayload);
 }
@@ -175,6 +176,7 @@ void handleSensorOptions() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.sendHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   server.sendHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
+  server.sendHeader("Access-Control-Allow-Private-Network", "true");
   server.send(204, "text/plain", "");
 }
 
@@ -182,6 +184,7 @@ void handleNotificationApi() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   server.sendHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
+  server.sendHeader("Access-Control-Allow-Private-Network", "true");
 
   if (!server.hasArg("plain")) {
     server.send(400, "application/json", "{\"ok\":false,\"error\":\"body kosong\"}");
@@ -200,6 +203,7 @@ void handleNotificationOptions() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   server.sendHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
+  server.sendHeader("Access-Control-Allow-Private-Network", "true");
   server.send(204, "text/plain", "");
 }
 

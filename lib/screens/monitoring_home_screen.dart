@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../models/sensor_data.dart';
 import 'sensor_detail_screen.dart';
 import '../app_theme.dart';
 import 'bluetooth_connection_sheet.dart';
-import '../services/esp32_http_service.dart';
+import '../services/mqtt_service.dart';
 import '../services/notification_store.dart';
 
 class MonitoringHomeScreen extends StatefulWidget {
@@ -17,25 +18,35 @@ class MonitoringHomeScreen extends StatefulWidget {
 }
 
 class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
+  // Harus selaras dengan FLAME_THRESHOLD dan WATER_THRESHOLD pada firmware
+  // ESP32 agar warna kartu menunjukkan kondisi yang sama dengan perangkat.
+  static const int _flameDangerThreshold = 2500;
+  static const int _flameWarningThreshold = 3500;
+  static const int _waterDangerThreshold = 20;
+  static const int _waterWarningThreshold = 10;
+  static const int _gasDangerThreshold = 1200;
+  static const int _gasWarningThreshold = 600;
+
   double _temp = 26.5;
   int _gas = 145;
   int _water = 0;
   int _flameValue = 4095;
   bool _flame = false;
   String _esp32Status = '';
-  String _triggerReason = '';
   bool _alarmOn = true;
   bool _fanOn = false;
   bool _bluetoothConnected = false;
   bool _apiConnected = false;
-  bool _fetchInFlight = false;
-  int _consecutiveFailures = 0;
+  bool _mqttConnected = false;
   final FlutterTts _tts = FlutterTts();
   bool _soundEnabled = false;
   bool _speakingWarning = false;
   String _lastAlarmState = 'Aman';
   String? _apiError;
-  Timer? _timer;
+  final MqttService _mqtt = MqttService();
+  StreamSubscription<MqttIncomingMessage>? _mqttSubscription;
+  late final VoidCallback _mqttStateListener;
+  late final VoidCallback _mqttErrorListener;
   final List<double> _temperatureHistory = [
     26.2,
     26.4,
@@ -58,125 +69,100 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchEsp32Data();
-    // ESP32 memperbarui sensor sekitar 200 ms; polling 500 ms membuat
-    // perubahan flame/water lebih cepat terlihat di web.
-    _timer = Timer.periodic(
-      const Duration(milliseconds: 100),
-      (_) => _fetchEsp32Data(),
-    );
+    _connectMqtt();
   }
 
-  Future<void> _fetchEsp32Data() async {
-    if (_bluetoothConnected || _fetchInFlight) return;
-    _fetchInFlight = true;
-    try {
-      final data = await Esp32HttpService.fetchSensors();
+  void _connectMqtt() {
+    _mqttStateListener = () {
       if (!mounted) return;
-
-      final temperature =
-          (data['temperature_c'] ?? data['temperature'] ?? data['temp'])
-              as num?;
-      final gas = (data['gas_raw'] ?? data['mq2_value']) as num?;
-      final flameValue = data['flame_value'] as num?;
-      final water = (data['water_value'] ?? data['water_raw']) as num?;
-      final esp32Status = (data['status'] ?? '').toString().toUpperCase();
-      final triggerReason = (data['trigger_reason'] ?? '')
-          .toString()
-          .toUpperCase();
-      final flame = flameValue != null
-          ? flameValue < 2500
-          : data['flame_detected'] == true;
-
       setState(() {
-        _apiConnected = true;
-        _consecutiveFailures = 0;
-        _apiError = null;
-        _esp32Status = esp32Status;
-        _triggerReason = triggerReason;
-        if (temperature != null) {
-          _temp = temperature.toDouble();
-          _temperatureHistory.add(_temp);
-          if (_temperatureHistory.length > 12) {
-            _temperatureHistory.removeAt(0);
-          }
-        }
-        if (gas != null) {
-          _gas = gas.toInt();
-          _gasHistory.add(_gas.toDouble());
-          if (_gasHistory.length > 12) _gasHistory.removeAt(0);
-        }
-        if (flameValue != null) {
-          _flameValue = flameValue.toInt();
-          _flameHistory.add(_flameValue.toDouble());
-          if (_flameHistory.length > 12) _flameHistory.removeAt(0);
-        }
-        if (water != null) {
-          _water = water.toInt();
-          _waterHistory.add(_water.toDouble());
-          if (_waterHistory.length > 12) _waterHistory.removeAt(0);
-        }
-        _flame = flame;
+        _mqttConnected = _mqtt.isConnected;
+        _apiConnected = _mqttConnected;
       });
-      _publishDetailUpdate();
-      _playAlarmIfNeeded();
+    };
+    _mqttErrorListener = () {
+      if (!mounted) return;
+      setState(() => _apiError = _mqtt.error.value);
+    };
+    _mqtt.connectionState.addListener(_mqttStateListener);
+    _mqtt.error.addListener(_mqttErrorListener);
+    _mqttSubscription = _mqtt.messages.listen(_onMqttMessage);
+    unawaited(_mqtt.connect());
+  }
+
+  void _onMqttMessage(MqttIncomingMessage message) {
+    try {
+      final decoded = jsonDecode(message.payload);
+      if (decoded is! Map) {
+        throw const FormatException('Payload MQTT harus berbentuk JSON object');
+      }
+      final data = Map<String, dynamic>.from(decoded);
+      if (message.topic == MqttService.sensorTopic) {
+        final nestedData = data['data'] ?? data['payload'];
+        _applySensorData(
+          nestedData is Map
+              ? Map<String, dynamic>.from(nestedData)
+              : data,
+        );
+      } else if (message.topic == MqttService.alertTopic) {
+        _applyMqttAlert(data);
+      }
     } catch (error) {
       if (!mounted) return;
-      _consecutiveFailures++;
-      setState(() {
-        // Pertahankan status online untuk gangguan singkat jaringan.
-        // Baru tampilkan offline setelah 3 request berturut-turut gagal.
-        if (_consecutiveFailures >= 3) _apiConnected = false;
-        // Jangan menampilkan banner pada satu kegagalan jaringan sementara.
-        _apiError = _consecutiveFailures >= 3 ? error.toString() : null;
-      });
-    } finally {
-      _fetchInFlight = false;
+      setState(() => _apiError = 'Payload MQTT tidak valid: $error');
+    }
+  }
+
+  void _applyMqttAlert(Map<String, dynamic> data) {
+    final nestedData = data['data'] ?? data['payload'];
+    _applySensorData(
+      nestedData is Map ? Map<String, dynamic>.from(nestedData) : data,
+    );
+
+    final status = (data['status'] ?? data['level'] ?? data['severity'] ?? '')
+        .toString()
+        .toUpperCase();
+    final message = (data['message'] ?? data['alert'] ?? '').toString();
+    if (!mounted) return;
+    setState(() {
+      if (status.isNotEmpty) _esp32Status = status;
+    });
+    if (message.isNotEmpty && (status.contains('BAHAYA') || status.contains('WASPADA'))) {
+      _showAlertBanner(message, status.contains('BAHAYA') ? 'Bahaya' : 'Waspada');
     }
   }
 
   String _temperatureStatus() => _temp >= 32
       ? 'Bahaya'
       : (_temp >= 27 || _temp < 18 ? 'Waspada' : 'Normal');
-  bool _reasonMatches(String values) =>
-      _triggerReason.contains(values) || _triggerReason.contains('ALL');
-
   String _gasStatus() {
-    if (_esp32Status.contains('BAHAYA') &&
-        (_reasonMatches('MQ2') || _reasonMatches('GAS'))) {
+    if (_gas >= _gasDangerThreshold) {
       return 'Bahaya';
     }
-    if (_esp32Status.contains('WASPADA') &&
-        (_reasonMatches('MQ2') || _reasonMatches('GAS'))) {
+    if (_gas >= _gasWarningThreshold) {
       return 'Waspada';
     }
-    return _gas >= 1200 ? 'Bahaya' : (_gas >= 600 ? 'Waspada' : 'Aman');
+    return 'Aman';
   }
 
   String _flameStatus() {
-    if (_esp32Status.contains('BAHAYA') &&
-        (_reasonMatches('FLAME') || _reasonMatches('API'))) {
+    if (_flameValue < _flameDangerThreshold || _flame) {
       return 'Bahaya';
     }
-    if (_esp32Status.contains('WASPADA') &&
-        (_reasonMatches('FLAME') || _reasonMatches('API'))) {
+    if (_flameValue < _flameWarningThreshold) {
       return 'Waspada';
     }
-    return (_flame || _flameValue < 2500)
-        ? 'Bahaya'
-        : (_flameValue < 3500 ? 'Waspada' : 'Aman');
+    return 'Aman';
   }
 
   String _waterStatus() {
-    if (_esp32Status.contains('BAHAYA') &&
-        (_reasonMatches('WATER') || _reasonMatches('AIR'))) {
+    if (_water >= _waterDangerThreshold) {
       return 'Bahaya';
     }
-    if (_esp32Status.contains('WASPADA') &&
-        (_reasonMatches('WATER') || _reasonMatches('AIR'))) {
+    if (_water >= _waterWarningThreshold) {
       return 'Waspada';
     }
-    return _water >= 20 ? 'Bahaya' : (_water >= 10 ? 'Waspada' : 'Aman');
+    return 'Aman';
   }
 
   void _playAlarmIfNeeded() {
@@ -224,15 +210,6 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
       message: message,
       value: value,
     );
-    unawaited(
-      Esp32HttpService.sendNotification(
-        sensor: sensor,
-        level: level,
-        message: message,
-        value: value,
-      ),
-    );
-
     // Notifikasi tetap dicatat dan dikirim walaupun suara/buzzer OFF.
     if (!_soundEnabled || !_alarmOn) return;
     unawaited(_speakWarning(message));
@@ -301,7 +278,10 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _mqtt.connectionState.removeListener(_mqttStateListener);
+    _mqtt.error.removeListener(_mqttErrorListener);
+    unawaited(_mqttSubscription?.cancel());
+    unawaited(_mqtt.dispose());
     unawaited(_tts.stop());
     _detailSensorNotifier?.dispose();
     super.dispose();
@@ -361,31 +341,47 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
             margin: const EdgeInsets.only(right: 16, top: 12, bottom: 12),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color:
-                  (_apiConnected
-                          ? const Color(0xFF10B981)
-                          : const Color(0xFFF59E0B))
-                      .withValues(alpha: 0.1),
+              color: (!_apiConnected && !_bluetoothConnected)
+                  ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
+                  : (_esp32Status.contains('BAHAYA')
+                      ? const Color(0xFFEF4444).withValues(alpha: 0.15)
+                      : (_esp32Status.contains('WASPADA')
+                          ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
+                          : const Color(0xFF10B981).withValues(alpha: 0.15))),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Row(
               children: [
                 Icon(
                   Icons.circle,
-                  color: (_bluetoothConnected || _apiConnected)
-                      ? const Color(0xFF10B981)
-                      : const Color(0xFFF59E0B),
+                  color: (!_apiConnected && !_bluetoothConnected)
+                      ? const Color(0xFFF59E0B)
+                      : (_esp32Status.contains('BAHAYA')
+                          ? const Color(0xFFEF4444)
+                          : (_esp32Status.contains('WASPADA')
+                              ? const Color(0xFFF59E0B)
+                              : const Color(0xFF10B981))),
                   size: 8,
                 ),
                 const SizedBox(width: 6),
                 Text(
                   _bluetoothConnected
                       ? 'BLE Online'
-                      : (_apiConnected ? 'API Online' : 'API Offline'),
+                      : (!_apiConnected
+                          ? 'MQTT Offline'
+                          : (_esp32Status.contains('BAHAYA')
+                              ? 'Status: BAHAYA'
+                              : (_esp32Status.contains('WASPADA')
+                                  ? 'Status: WASPADA'
+                                  : 'MQTT Online'))),
                   style: TextStyle(
-                    color: (_bluetoothConnected || _apiConnected)
-                        ? const Color(0xFF10B981)
-                        : const Color(0xFFF59E0B),
+                    color: (!_apiConnected && !_bluetoothConnected)
+                        ? const Color(0xFFD97706)
+                        : (_esp32Status.contains('BAHAYA')
+                            ? const Color(0xFFDC2626)
+                            : (_esp32Status.contains('WASPADA')
+                                ? const Color(0xFFD97706)
+                                : const Color(0xFF059669))),
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -410,7 +406,7 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  'Gagal membaca ESP32: $_apiError',
+                  'Koneksi API: $_apiError',
                   style: const TextStyle(
                     color: Color(0xFF9A3412),
                     fontSize: 12,
@@ -434,7 +430,11 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
                   child: _buildSensorCard(
                     'Level Air',
                     '$_water ADC',
-                    'Maks Aman: 10 ADC',
+                    _waterStatus() == 'Bahaya'
+                        ? 'Bahaya Air Tinggi!'
+                        : (_waterStatus() == 'Waspada'
+                            ? 'Waspada Ada Air'
+                            : 'Normal Kering (<10)'),
                     _waterStatus(),
                     const Color(0xFF0EA5E9),
                     Icons.water,
@@ -449,7 +449,11 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
                   child: _buildSensorCard(
                     'Sensor Gas',
                     '$_gas PPM',
-                    'Maks Aman: 600 PPM',
+                    _gasStatus() == 'Bahaya'
+                        ? 'Bahaya Gas Pekat!'
+                        : (_gasStatus() == 'Waspada'
+                            ? 'Waspada Gas Naik'
+                            : 'Maks Aman: 600 PPM'),
                     _gasStatus(),
                     const Color(0xFF10B981),
                     Icons.air,
@@ -459,10 +463,12 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
                 Expanded(
                   child: _buildSensorCard(
                     'Deteksi Api',
-                    _flame ? 'API ADA' : 'TIDAK ADA API',
+                    _flameStatus() == 'Bahaya'
+                        ? 'API ADA'
+                        : (_flameStatus() == 'Waspada' ? 'WASPADA API' : 'TIDAK ADA API'),
                     'Nilai: $_flameValue ADC',
                     _flameStatus(),
-                    const Color(0xFF10B981),
+                    const Color(0xFFEF4444),
                     Icons.local_fire_department,
                   ),
                 ),
@@ -596,7 +602,7 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
       builder: (_) => BluetoothConnectionSheet(
         onConnectionChanged: (connected) =>
             setState(() => _bluetoothConnected = connected),
-        onSensorData: _applyBluetoothSensorData,
+        onSensorData: _applySensorData,
       ),
     );
   }
@@ -626,29 +632,29 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
     if (enabled) unawaited(_enableSound());
   }
 
-  void _applyBluetoothSensorData(Map<String, dynamic> data) {
-    num? readNum(Object? value) {
-      if (value is num) return value;
-      return num.tryParse(value?.toString() ?? '');
-    }
-
-    final temperature = readNum(
+  void _applySensorData(Map<String, dynamic> data) {
+    final temperature = _asNum(
       data['temperature_c'] ?? data['temperature'] ?? data['temp'],
     )?.toDouble();
-    final gas = readNum(data['gas_raw'] ?? data['mq2_value'])?.toInt();
-    final flame = data['flame_detected'];
-    final flameValue = readNum(data['flame_value'])?.toInt();
-    final water = readNum(data['water_value'] ?? data['water_raw'])?.toInt();
+    final gas = _asNum(data['gas_raw'] ?? data['mq2_value'] ?? data['gas'])
+        ?.toInt();
+    final rawFlame =
+        data['flame_detected'] ?? data['flame'] ?? data['fire'] ?? data['api'];
+    final flame = _asBool(rawFlame);
+    final flameValue = _asNum(data['flame_value'] ??
+            data['flame_raw'] ??
+            data['flame_adc'])
+        ?.toInt();
+    final water = _asNum(data['water_value'] ??
+            data['water_raw'] ??
+            data['water'] ??
+            data['level_air'] ??
+            data['water_level'])
+        ?.toInt();
     final esp32Status = (data['status'] ?? '').toString().toUpperCase();
-    final triggerReason = (data['trigger_reason'] ?? '')
-        .toString()
-        .toUpperCase();
     if (!mounted) return;
     setState(() {
-      _apiConnected = true;
-      _apiError = null;
       if (esp32Status.isNotEmpty) _esp32Status = esp32Status;
-      if (triggerReason.isNotEmpty) _triggerReason = triggerReason;
       if (temperature != null) {
         _temp = temperature;
         _temperatureHistory.add(temperature);
@@ -661,7 +667,7 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
       }
       if (flameValue != null) {
         _flameValue = flameValue;
-        _flame = flameValue < 2500;
+        _flame = flameValue < _flameDangerThreshold;
         _flameHistory.add(flameValue.toDouble());
         if (_flameHistory.length > 12) _flameHistory.removeAt(0);
       }
@@ -670,12 +676,26 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
         _waterHistory.add(_water.toDouble());
         if (_waterHistory.length > 12) _waterHistory.removeAt(0);
       }
-      if (flame is bool) _flame = flame;
+      if (rawFlame != null) _flame = flame;
     });
     _publishDetailUpdate();
     // BLE notification langsung memicu perubahan warna, popup, notifikasi,
     // dan suara tanpa menunggu request HTTP berikutnya.
     _playAlarmIfNeeded();
+  }
+
+  num? _asNum(Object? value) {
+    if (value is num) return value;
+    return num.tryParse(value?.toString().trim() ?? '');
+  }
+
+  bool _asBool(Object? value) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    return switch (value?.toString().trim().toLowerCase()) {
+      'true' || '1' || 'on' || 'detected' || 'ada' => true,
+      _ => false,
+    };
   }
 
   Widget _buildSensorCard(
@@ -709,38 +729,43 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
         : currentStatus == 'Waspada'
         ? const Color(0xFFF59E0B)
         : const Color(0xFF10B981);
-    final cardColor = currentStatus == 'Bahaya'
+
+    final isBahaya = currentStatus == 'Bahaya';
+    final isWaspada = currentStatus == 'Waspada';
+    final isAlert = isBahaya || isWaspada;
+
+    final cardBgColor = isBahaya
         ? const Color(0xFFEF4444)
-        : currentStatus == 'Waspada'
-        ? const Color(0xFFFBBF24)
-        : Colors.white;
-    final cardTextColor = Colors.black87;
+        : (isWaspada ? const Color(0xFFF59E0B) : Colors.white);
+    final cardBorderColor = isBahaya
+        ? const Color(0xFFDC2626)
+        : (isWaspada ? const Color(0xFFD97706) : Colors.black.withValues(alpha: 0.04));
+    final primaryTextColor = isAlert ? Colors.white : Colors.black87;
+    final secondaryTextColor = isAlert ? Colors.white.withValues(alpha: 0.9) : Colors.black54;
+    final activeIconColor = isAlert ? Colors.white : color;
+    final iconBgColor = isAlert ? Colors.white.withValues(alpha: 0.22) : color.withValues(alpha: 0.1);
+    final badgeBgColor = isAlert ? Colors.white.withValues(alpha: 0.25) : statusColor.withValues(alpha: 0.12);
+    final badgeTextColor = isAlert ? Colors.white : statusColor;
+
     return SizedBox(
       height: 145,
       child: InkWell(
         onTap: () => _openSensorDetail(title),
         borderRadius: BorderRadius.circular(16),
         child: AnimatedContainer(
-          duration: Duration.zero,
+          duration: const Duration(milliseconds: 250),
           curve: Curves.easeInOut,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: cardColor,
+            color: cardBgColor,
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: cardBorderColor, width: isAlert ? 1.5 : 1),
             boxShadow: [
               BoxShadow(
-                color: statusColor.withValues(
-                  alpha:
-                      currentStatus == 'Normal' ||
-                          currentStatus == 'Ideal' ||
-                          currentStatus == 'Aman'
-                      ? 0.08
-                      : 0.3,
-                ),
-                blurRadius:
-                    currentStatus == 'Bahaya' || currentStatus == 'Waspada'
-                    ? 14
-                    : 8,
+                color: isAlert
+                    ? statusColor.withValues(alpha: 0.35)
+                    : Colors.black.withValues(alpha: 0.05),
+                blurRadius: isAlert ? 16 : 8,
                 offset: const Offset(0, 3),
               ),
             ],
@@ -758,15 +783,15 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 12,
-                        color: cardTextColor.withValues(alpha: 0.75),
-                        fontWeight: FontWeight.w500,
+                        color: secondaryTextColor,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                   Icon(
                     Icons.arrow_forward_ios,
                     size: 12,
-                    color: cardTextColor.withValues(alpha: 0.45),
+                    color: secondaryTextColor.withValues(alpha: 0.6),
                   ),
                 ],
               ),
@@ -776,10 +801,10 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.1),
+                      color: iconBgColor,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(icon, color: color, size: 24),
+                    child: Icon(icon, color: activeIconColor, size: 24),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -788,24 +813,16 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         AnimatedSwitcher(
-                          duration: Duration.zero,
-                          transitionBuilder: (child, animation) =>
-                              FadeTransition(
-                                opacity: animation,
-                                child: ScaleTransition(
-                                  scale: animation,
-                                  child: child,
-                                ),
-                              ),
+                          duration: const Duration(milliseconds: 200),
                           child: Text(
                             currentValue,
                             key: ValueKey(currentValue),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 18,
+                            style: TextStyle(
+                              fontSize: 17,
                               fontWeight: FontWeight.bold,
-                              color: Colors.black87,
+                              color: primaryTextColor,
                             ),
                           ),
                         ),
@@ -814,7 +831,7 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
                           time,
                           style: TextStyle(
                             fontSize: 10,
-                            color: cardTextColor.withValues(alpha: 0.65),
+                            color: secondaryTextColor,
                           ),
                         ),
                       ],
@@ -824,24 +841,18 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
               ),
               const SizedBox(height: 6),
               AnimatedContainer(
-                duration: Duration.zero,
-                curve: Curves.easeOut,
+                duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color:
-                      currentStatus == 'Normal' ||
-                          currentStatus == 'Ideal' ||
-                          currentStatus == 'Aman'
-                      ? statusColor.withValues(alpha: 0.1)
-                      : Colors.white.withValues(alpha: 0.22),
+                  color: badgeBgColor,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   currentStatus,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w600,
+                    color: badgeTextColor,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
@@ -915,7 +926,6 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
     final isTemperature = title == 'Suhu Ruangan';
     final isFlame = title == 'Deteksi Api';
     final isWater = title == 'Level Air';
-    final isGas = title == 'Sensor Gas';
 
     final SensorType type = isTemperature
         ? SensorType.temperature
@@ -960,18 +970,18 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen> {
     final dangerThreshold = isTemperature
         ? 32.0
         : isFlame
-            ? 2500.0
+            ? _flameDangerThreshold.toDouble()
             : isWater
-                ? 20.0
-                : 1200.0;
+                ? _waterDangerThreshold.toDouble()
+                : _gasDangerThreshold.toDouble();
 
     final warningThreshold = isTemperature
         ? 27.0
         : isFlame
-            ? 3500.0
+            ? _flameWarningThreshold.toDouble()
             : isWater
-                ? 10.0
-                : 600.0;
+                ? _waterWarningThreshold.toDouble()
+                : _gasWarningThreshold.toDouble();
 
     return SensorData(
       id: title,

@@ -1,0 +1,14 @@
+import 'package:mqtt_client/mqtt_browser_client.dart';
+import 'package:mqtt_client/mqtt_client.dart';
+
+MqttClient createMqttClient({
+  required String host,
+  required String clientId,
+  required int tcpPort,
+  required int webSocketPort,
+}) {
+  final client = MqttBrowserClient('ws://$host', clientId)
+    ..port = webSocketPort
+    ..websocketProtocols = MqttClientConstants.protocolsSingleDefault;
+  return client;
+}
