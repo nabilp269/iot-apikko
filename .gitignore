@@ -43,3 +43,16 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Windows system files
+desktop.ini
+Thumbs.db
+
+# AI assistant cache folders
+.freebird/
+.kiro/
+.lean_ai/
