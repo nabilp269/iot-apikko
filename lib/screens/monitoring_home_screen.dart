@@ -9,6 +9,7 @@ import '../app_theme.dart';
 import 'bluetooth_connection_sheet.dart';
 import '../services/mqtt_service.dart';
 import '../services/notification_store.dart';
+import '../services/esp32_http_service.dart';
 
 class MonitoringHomeScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigate;
@@ -47,6 +48,7 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen>
   late final VoidCallback _mqttStateListener;
   late final VoidCallback _mqttErrorListener;
   DateTime _lastPacketTime = DateTime.now();
+  Timer? _pollTimer;
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -74,6 +76,36 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
     _connectMqtt();
+    _startHttpPolling();
+  }
+
+  void _startHttpPolling() {
+    _pollTimer?.cancel();
+    _fetchApiData();
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!_mqttConnected) {
+        _fetchApiData();
+      }
+    });
+  }
+
+  Future<void> _fetchApiData() async {
+    try {
+      final data = await Esp32HttpService.fetchSensors();
+      if (!mounted) return;
+      _applySensorData(data);
+      setState(() {
+        _apiConnected = true;
+        _apiError = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      if (!_mqttConnected) {
+        setState(() {
+          _apiConnected = false;
+        });
+      }
+    }
   }
 
   void _connectMqtt() {
@@ -275,6 +307,7 @@ class _MonitoringHomeScreenState extends State<MonitoringHomeScreen>
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _pulseController.dispose();
     _mqtt.connectionState.removeListener(_mqttStateListener);
     _mqtt.error.removeListener(_mqttErrorListener);
